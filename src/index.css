@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Turing's Escape — global design system
+   Refined retro-terminal: deep charcoal, one accent per room,
+   restrained glow, real typographic hierarchy, smooth motion.
+   ============================================================ */
+
+@layer base {
+  :root {
+    /* Active room accent — overridden per room on <body> via data-room */
+    --accent: 70 230 160; /* pda green-teal, as "r g b" for alpha use */
+    --glow: rgba(70, 230, 160, 0.22);
+  }
+
+  /* Per-room accent theming. Set data-accent on a wrapper. */
+  [data-accent='pda'] {
+    --accent: 70 230 160;
+    --glow: rgba(70, 230, 160, 0.22);
+  }
+  [data-accent='tm'] {
+    --accent: 92 200 255;
+    --glow: rgba(92, 200, 255, 0.22);
+  }
+  [data-accent='oracle'] {
+    --accent: 192 140 255;
+    --glow: rgba(192, 140, 255, 0.22);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'JetBrains Mono', monospace;
+    background-color: #0a0c0f;
+    color: #cdd6df;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Ambient backdrop: a soft top glow + a faint grid. No noisy matrix rain. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(var(--accent) / 0.10), transparent 60%),
+      #0a0c0f;
+    transition: background 0.8s ease;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 100% 80% at 50% 30%, #000 30%, transparent 80%);
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.3);
+    color: #fff;
+  }
+
+  /* Tidy scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a313c;
+    border-radius: 6px;
+    border: 2px solid #0a0c0f;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a424f;
+  }
+}
+
+@layer components {
+  /* The accent color expressed as a usable text/border/bg helper */
+  .text-accent {
+    color: rgb(var(--accent));
+  }
+  .border-accent {
+    border-color: rgb(var(--accent));
+  }
+  .bg-accent {
+    background-color: rgb(var(--accent));
+  }
+  .bg-accent\/10 {
+    background-color: rgb(var(--accent) / 0.1);
+  }
+  .ring-accent {
+    --tw-ring-color: rgb(var(--accent));
+  }
+
+  /* A framed terminal panel */
+  .panel {
+    @apply rounded-xl border border-ink-600/70 bg-ink-800/60 backdrop-blur-sm;
+  }
+
+  /* Subtle scanline texture, opt-in per element */
+  .scanlines {
+    position: relative;
+  }
+  .scanlines::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0, 0, 0, 0.12) 3px,
+      rgba(0, 0, 0, 0.12) 4px
+    );
+    opacity: 0.4;
+    border-radius: inherit;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

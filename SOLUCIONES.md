@@ -1,5 +1,37 @@
 # Soluciones — Turing's Escape
 
+> Guía completa de soluciones, trazas paso a paso y fundamentos teóricos del juego.
+> Versión 2.0 — reescrito como proyecto React + TypeScript (Vite). Los autómatas son
+> idénticos a la versión original; lo que cambió es la presentación.
+
+## Índice
+
+1. [Cómo está organizado el proyecto](#cómo-está-organizado-el-proyecto)
+2. [Sala 1 · Autómata con Pila](#sala-1-autómata-con-pila-pda)
+3. [Sala 2 · Máquina de Turing](#sala-2-máquina-de-turing-mt--demo)
+4. [Sala 3 · El Oráculo (Decidibilidad)](#sala-3-el-oráculo--decidibilidad)
+5. [Sistema de puntuación](#sistema-de-puntuación)
+6. [Apéndice teórico](#apéndice-teórico)
+7. [Glosario](#glosario)
+
+---
+
+## Cómo está organizado el proyecto
+
+La lógica formal vive separada de la interfaz, así que cada autómata se puede leer
+(y verificar) de forma aislada:
+
+| Archivo | Qué contiene |
+|---------|--------------|
+| `src/engines/pda.ts` | δ del autómata con pila, acción correcta por configuración, explicaciones. |
+| `src/engines/tm.ts` | Tabla δ de la Máquina de Turing, aplicación de transiciones, descripción instantánea. |
+| `src/engines/decidability.ts` | Los 7 problemas del Oráculo con su clasificación y justificación. |
+| `src/rooms/*.tsx` | La interfaz de cada sala (consume los engines, no reimplementa la teoría). |
+| `src/state/gameStore.ts` | Vidas, puntaje, progresión, récord. |
+
+> **Para verificar una solución** basta leer el engine correspondiente: ahí está la
+> «fuente de verdad» de qué es correcto en cada paso.
+
 ---
 
 ## Sala 1: Autómata con Pila (PDA)
@@ -159,3 +191,128 @@ Tras el paso 7 se han consumido todos los 0s y 1s, pero la MT no ha podido empar
 **¿Es el lenguaje de una Máquina de Turing M no vacío? (NE_TM: L(M) ≠ ∅)**
 - **Respuesta:** RECONOCIBLE (no decidible)
 - **Razonamiento:** NE_TM es reconocible mediante la técnica de dovetailing: enumeramos todas las cadenas posibles en Σ* y simulamos M con cada una en paralelo (unas pocas instrucciones cada vez). Si M acepta alguna cadena, aceptamos. No es decidible porque su complemento E_TM no es reconocible (si NE_TM fuera decidible, E_TM también lo sería).
+
+### Tabla resumen del Oráculo
+
+| # | Problema | Clasificación | Argumento clave |
+|---|----------|---------------|-----------------|
+| 1 | A_TM — ¿M acepta w? | Reconocible | Simulación directa; reducción del Halting Problem ⇒ no decidible. |
+| 2 | E_TM — ¿L(M) = ∅? | Irreconocible | A_TM ≤ ¬E_TM; Rice (propiedad no trivial). |
+| 3 | ALL_TM — ¿L(M) = Σ*? | Irreconocible | Π₂-completo; reducción desde ¬A_TM. |
+| 4 | E_AFD — ¿L(AFD) = ∅? | Decidible | Alcanzabilidad en grafo finito (BFS/DFS). |
+| 5 | w ∈ L(decididor) | Decidible | M siempre para ⇒ ejecutar M sobre w. |
+| 6 | EQ_TM — ¿L(M₁) = L(M₂)? | Irreconocible | E_TM ≤ EQ_TM; Rice. |
+| 7 | NE_TM — ¿L(M) ≠ ∅? | Reconocible | Dovetailing; complemento E_TM no reconocible ⇒ no decidible. |
+
+> **Regla mental rápida:** decidir algo sobre el **lenguaje** de una MT casi siempre es
+> indecidible (Teorema de Rice). Lo decidible aparece cuando el modelo es finito (AFD)
+> o cuando se *garantiza* la parada (decididor).
+
+---
+
+## Sistema de puntuación
+
+| Evento | Puntos |
+|--------|--------|
+| Paso/transición correcta (Salas 1 y 2) | **+100** |
+| Clasificación correcta (Sala 3) | **+100** |
+| Resolver una cadena en menos de 30 s | **+200** (bono de velocidad) |
+| Error en cualquier sala | **−50** |
+| Usar la pista de la Sala 3 | **−10** |
+
+El puntaje nunca baja de 0. Cada sala tiene **5 vidas**; agotarlas reinicia la cadena
+actual (no la sala) y recarga las vidas.
+
+### Rangos finales
+
+| Puntaje | Rango |
+|---------|-------|
+| ≥ 3000 | Maestro de Turing |
+| ≥ 2000 | Experto en Computabilidad |
+| ≥ 1000 | Ingeniero de Lenguajes |
+| ≥ 500 | Técnico en Autómatas |
+| < 500 | Aprendiz |
+
+El récord personal se guarda en `localStorage` (`turingEscapeHigh`).
+
+---
+
+## Apéndice teórico
+
+### La jerarquía de Chomsky (dónde encaja cada sala)
+
+```
+ Tipo 3  Regulares          ← AFD/AFN, expresiones regulares
+ Tipo 2  Libres de contexto ← Autómata con Pila   (Sala 1: aⁿbⁿ)
+ Tipo 1  Sensibles al contexto
+ Tipo 0  Recursivamente enumerables ← Máquina de Turing (Sala 2: 0ⁿ1ⁿ)
+```
+
+- **L = {aⁿbⁿ}** no es regular (un AFD no puede «contar» las a sin memoria), pero sí es
+  libre de contexto: la **pila** es exactamente la memoria que hace falta.
+- **L = {0ⁿ1ⁿ}** también es libre de contexto, pero en la Sala 2 se reconoce con una
+  **Máquina de Turing** para ilustrar el modelo más potente: marcar/emparejar símbolos
+  recorriendo la cinta en ambos sentidos.
+
+### El zoológico de la decidibilidad
+
+```
+          ┌──────────────────────────────────────────┐
+          │  Todos los lenguajes                      │
+          │  ┌────────────────────────────────────┐  │
+          │  │  Turing-reconocibles (RE)          │  │
+          │  │   p. ej. A_TM, NE_TM               │  │
+          │  │  ┌──────────────────────────────┐  │  │
+          │  │  │  Decidibles (R)              │  │  │
+          │  │  │   p. ej. E_AFD, w∈L(decid.)  │  │  │
+          │  │  └──────────────────────────────┘  │  │
+          │  └────────────────────────────────────┘  │
+          │   Fuera de RE (irreconocibles):          │
+          │   E_TM, ALL_TM, EQ_TM, ¬A_TM             │
+          └──────────────────────────────────────────┘
+```
+
+- **Decidible (R):** existe una MT que **siempre para** y responde sí/no.
+- **Reconocible (RE):** existe una MT que **acepta** los «sí», pero puede **no parar**
+  en los «no». Teorema: *L es decidible ⟺ L y su complemento son ambos reconocibles.*
+- **Irreconocible:** ni L ni su complemento son reconocibles.
+
+### Teorema de Rice (la herramienta más usada en la Sala 3)
+
+> Toda propiedad **no trivial** del **lenguaje** de una Máquina de Turing es **indecidible**.
+
+«No trivial» = la cumplen algunas MT y otras no. Por eso «¿L(M) = ∅?», «¿L(M) = Σ*?» y
+«¿L(M₁) = L(M₂)?» son indecidibles: todas hablan del *lenguaje* reconocido, no de la
+sintaxis de la máquina. Cuidado: Rice habla del lenguaje, no de propiedades del *código*
+(p. ej. «¿M tiene 7 estados?» sí es decidible).
+
+### Diagonalización y el Problema de la Parada
+
+Suponer un decididor `H(M, w)` que dice si M para sobre w lleva a contradicción:
+construye `D(M) = if H(M, M) then loop else halt`. Evaluar `D(D)` es paradójico
+(para ⟺ no para). Luego H no existe: **el Halting Problem es indecidible**, y A_TM
+hereda esa dificultad por reducción.
+
+### Dovetailing (por qué NE_TM es reconocible)
+
+Para buscar *alguna* cadena que M acepte sin quedar atrapado en una que diverge, se
+simulan todas las cadenas «en paralelo por turnos»: en la ronda *k* se ejecutan *k*
+pasos de las primeras *k* cadenas. Si M acepta alguna, en algún momento se detecta.
+Si M no acepta ninguna, la búsqueda no termina — por eso NE_TM es reconocible pero
+**no** decidible.
+
+---
+
+## Glosario
+
+| Término | Significado |
+|---------|-------------|
+| **δ (delta)** | Función de transición: dadas las condiciones actuales, qué hacer. |
+| **Z₀** | Símbolo de fondo de pila; marca que la pila está «vacía». |
+| **ε (épsilon)** | Cadena/movimiento vacío (no leer entrada, o entrada consumida). |
+| **Configuración instantánea** | Foto completa del cómputo: estado + contenido + posición del cabezal. |
+| **Σ (sigma)** | Alfabeto de entrada. **Γ (gamma):** alfabeto de la cinta/pila. |
+| **AFD** | Autómata Finito Determinista (memoria finita, sin pila). |
+| **R / RE** | Recursivo (decidible) / Recursivamente enumerable (reconocible). |
+| **Reducción A ≤ B** | Resolver B permitiría resolver A; si A es difícil, B también. |
+| **Decididor** | MT que **siempre** para sobre toda entrada. |

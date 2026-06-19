@@ -41,11 +41,13 @@ El jugador clasifica 5 problemas computacionales como **DECIDIBLE**, **RECONOCIB
 
 ## Estilo visual
 
-- Interfaz **cyberpunk / terminal** con fondo oscuro (#1a1a2e → #0a0a0a) y acentos verde neón (#00ff41).
-- Tipografía monospace (`'Courier New', 'Consolas', monospace`) que evoca una terminal clásica.
-- Animaciones CSS para push/pop en la pila y parpadeo del cabezal de la cinta.
-- Diseño responsive que se adapta a pantallas móviles (media query a 768px).
-- Sin dependencias externas: CSS y JavaScript puros en un solo archivo.
+- Estética **retro-terminal refinada**: fondo carbón profundo, un acento por sala
+  (verde-teal · cian · violeta) y resplandor sobrio en lugar de neón saturado.
+- Tipografía monospace (**JetBrains Mono**) con jerarquía tipográfica real.
+- Animaciones fluidas con **Framer Motion**: push/pop de la pila, deslizamiento del
+  cabezal de la cinta, transiciones entre salas y entradas escalonadas.
+- Fondo ambiental discreto (glow + rejilla sutil); sin «lluvia matrix» ruidosa.
+- Diseño responsive y accesible (respeta `prefers-reduced-motion`).
 
 ---
 
@@ -77,6 +79,30 @@ startGame()
 
 ## Cómo ejecutar
 
-Abrir `turings_escape.html` en cualquier navegador moderno.
+Este proyecto pasó de ser un único `.html` a una aplicación **Vite + React + TypeScript**.
 
-No requiere servidor ni dependencias.
+```bash
+npm install      # instalar dependencias (una vez)
+npm run dev      # servidor de desarrollo con recarga en caliente
+npm run build    # build de producción (typecheck + bundle en dist/)
+npm run preview  # servir el build de producción localmente
+```
+
+Requiere Node 18+ (probado con Node 22).
+
+### Estructura
+
+```
+src/
+  engines/    pda.ts · tm.ts · decidability.ts   ← lógica formal (sin UI)
+  rooms/      PdaRoom · TmRoom · OracleRoom       ← una sala por componente
+  components/ Stack · Tape · HUD · ...            ← UI reutilizable
+  screens/    StartScreen · VictoryScreen
+  state/      gameStore.ts                        ← vidas, puntaje, progresión
+  App.tsx
+```
+
+La teoría (autómatas, tabla δ, clasificaciones) vive en `src/engines/` y es la fuente de
+verdad del juego. Ver `SOLUCIONES.md` para trazas paso a paso y fundamentos.
+
+> El archivo original `turings_escape_v2.html` se conserva como referencia histórica.
