@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turing's Escape — Enhanced</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--green:#00ff41;--cyan:#00d4ff;--magenta:#ff00a0;--bg:#0d0d0d;--bg2:#0a0a1a;--text:#d0d0d0;--dim:#555}
+body{font-family:'JetBrains Mono','Courier New',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;overflow-y:auto;position:relative}
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:radial-gradient(ellipse at 50% 0%,#0a0a2a 0%,var(--bg) 70%);pointer-events:none;z-index:0}
+#matrix-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;opacity:.15}
+#scanlines{position:fixed;top:0;left:0;width:100%;height:100%;z-index:99998;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.07) 2px,rgba(0,0,0,.07) 4px)}
+#hud{position:fixed;top:0;left:0;width:100%;z-index:100;background:rgba(13,13,13,.92);border-bottom:1px solid #222;padding:6px 16px;display:none;align-items:center;gap:14px;font-size:.72rem;backdrop-filter:blur(2px)}
+#hud.show{display:flex;flex-wrap:wrap}
+#hud .hud-item{display:flex;align-items:center;gap:5px}
+#hud .hud-label{color:#666;text-transform:uppercase;letter-spacing:1px;font-size:.6rem}
+#hud .hud-value{color:var(--green);font-weight:600}
+#hud .hud-score{color:var(--cyan)}
+#progress-bar{flex:1;min-width:120px;height:6px;background:#1a1a1a;border-radius:3px;overflow:hidden;position:relative}
+#progress-bar .fill{height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:3px;transition:width .6s ease;width:0%}
+#start-screen{z-index:50;position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:2rem;text-align:center}
+#start-screen .terminal-box{background:rgba(0,0,0,.7);border:1px solid #333;padding:2.5rem 2rem;max-width:720px;width:100%;position:relative;overflow:hidden}
+#start-screen .terminal-box::before{content:'';position:absolute;top:0;left:0;width:100%;height:2px;background:linear-gradient(90deg,transparent,var(--green),var(--cyan),var(--magenta),transparent)}
+#start-screen .title-art{font-size:clamp(9px,2.2vw,17px);white-space:pre;line-height:1.25;color:var(--green);margin-bottom:1.2rem;text-align:left;display:inline-block}
+#start-screen .story-text{text-align:left;font-size:.85rem;line-height:1.7;color:#aaa;margin-bottom:1.5rem}
+#start-screen .story-text .highlight-green{color:var(--green)}
+#start-screen .story-text .highlight-cyan{color:var(--cyan)}
+#start-screen .story-text .highlight-magenta{color:var(--magenta)}
+#start-screen .system-prompt{color:#666;font-size:.75rem;margin-bottom:1.5rem;border-top:1px solid #222;padding-top:1rem;text-align:left}
+.btn-primary{background:transparent;border:2px solid var(--green);color:var(--green);padding:14px 48px;font-size:1.1rem;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:all .3s;letter-spacing:3px;text-transform:uppercase;position:relative}
+.btn-primary:hover{background:var(--green);color:#0a0a0a;box-shadow:0 0 30px rgba(0,255,65,.15)}
+.btn-primary:disabled{opacity:.3;cursor:not-allowed}
+#game-container{z-index:10;position:relative;width:96%;max-width:1100px;margin:60px auto 20px;background:rgba(13,13,13,.95);border:1px solid #222;padding:0;display:none;flex-direction:column;min-height:80vh}
+#game-container.active{display:flex}
+#room-progress{display:flex;gap:0;border-bottom:1px solid #222}
+.room-tab{flex:1;padding:10px 6px;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:2px;border-bottom:2px solid transparent;color:#555;background:#0a0a0a;transition:all .4s}
+.room-tab.active{border-bottom-color:var(--green);color:var(--green);background:#0f0f0f}
+.room-tab.done{color:#444;border-bottom-color:#333}
+.room-tab.locked{opacity:.3}
+.room-tab .badge{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.room-tab .badge.green{background:var(--green)}
+.room-tab .badge.cyan{background:var(--cyan)}
+.room-tab .badge.magenta{background:var(--magenta)}
+.room{display:none;padding:1.5rem}
+.room.active{display:block}
+.room[data-room="0"]{border-top:1px solid rgba(0,255,65,.15)}
+.room[data-room="1"]{border-top:1px solid rgba(0,212,255,.15)}
+.room[data-room="2"]{border-top:1px solid rgba(255,0,160,.15)}
+.room-title{font-size:1rem;margin-bottom:.3rem;letter-spacing:3px;overflow:hidden;white-space:nowrap;border-right:2px solid transparent}
+.room-title.cursor-blink{border-right-color:var(--green);animation:cursorBlink .8s step-end infinite}
+.room[data-room="1"] .room-title.cursor-blink{border-right-color:var(--cyan)}
+.room[data-room="2"] .room-title.cursor-blink{border-right-color:var(--magenta)}
+@keyframes cursorBlink{50%{border-right-color:transparent}}
+.room-subtitle{font-size:.78rem;color:#666;margin-bottom:1.2rem;line-height:1.5}
+.sys-msg{background:#0a0a0a;border-left:3px solid #444;padding:.5rem .8rem;font-size:.78rem;color:#888;margin-bottom:1rem;line-height:1.5;min-height:2rem;transition:all .3s}
+.sys-msg.green{border-left-color:var(--green);color:var(--green)}
+.sys-msg.cyan{border-left-color:var(--cyan);color:var(--cyan)}
+.sys-msg.magenta{border-left-color:var(--magenta);color:var(--magenta)}
+.sys-msg.error{border-left-color:#ff3333;color:#ff4444}
+.sys-msg.success{border-left-color:var(--green);color:var(--green)}
+/* ROOM SPECIFIC COLORS */
+.room[data-room="0"] .sys-msg.green{--accent:var(--green)}
+.room[data-room="0"] button:not(.btn-primary):not(:disabled):hover{border-color:var(--green);background:rgba(0,255,65,.08)}
+.room[data-room="1"] button:not(.btn-primary):not(:disabled):hover{border-color:var(--cyan);background:rgba(0,212,255,.08)}
+.room[data-room="2"] button:not(.btn-primary):not(:disabled):hover{border-color:var(--magenta);background:rgba(255,0,160,.08)}
+.test-select{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem}
+.test-select button{padding:5px 14px;background:#0a0a0a;border:1px solid #333;color:#888;font-family:'JetBrains Mono',monospace;cursor:pointer;font-size:.75rem;transition:all .2s}
+.test-select button:hover{border-color:#666;color:#ccc}
+.test-select button.selected,.test-select button.selected:hover{color:#fff;border-color:inherit}
+.room[data-room="0"] .test-select button.selected{border-color:var(--green);color:var(--green);background:rgba(0,255,65,.08)}
+.room[data-room="1"] .test-select button.selected{border-color:var(--cyan);color:var(--cyan);background:rgba(0,212,255,.08)}
+.test-select button.done{opacity:.4;text-decoration:line-through}
+.input-display{font-size:.88rem;margin-bottom:.6rem;padding:.4rem 0}
+.input-display .consumed{color:#444;text-decoration:line-through}
+.input-display .current{background:var(--green);color:#000;padding:1px 5px;border-radius:2px}
+.room[data-room="1"] .input-display .current{background:var(--cyan)}
+.input-display .remaining{color:var(--green)}
+.room[data-room="1"] .input-display .remaining{color:var(--cyan)}
+#pda-layout{display:flex;gap:1.5rem;flex-wrap:wrap;margin:.6rem 0}
+#pda-stack-col{flex:0 0 130px}
+#pda-stack-col .stack-label{font-size:.68rem;color:#666;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.stack-container{display:flex;flex-direction:column-reverse;border:1px solid #222;min-height:170px;background:#080808;padding:3px}
+.stack-cell{width:100%;height:30px;line-height:30px;text-align:center;border:1px solid var(--green);margin:2px 0;font-weight:600;font-size:.85rem;background:rgba(0,255,65,.06);transition:all .3s;color:var(--green)}
+.stack-cell.pop-anim{animation:popAnim .3s ease-out forwards}
+.stack-cell.push-anim{animation:pushAnim .3s ease-out}
+@keyframes pushAnim{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popAnim{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-16px)}}
+#pda-info{flex:1;min-width:220px}
+#pda-rules{background:#080808;border:1px solid #1a1a1a;padding:.5rem;font-size:.72rem;line-height:1.7;margin-bottom:.6rem}
+#pda-rules .rule{color:#888}
+#pda-rules .rule .sym{color:var(--green)}
+.transition-tuple{font-size:.72rem;color:#aaa;background:#0a0a0a;border:1px solid #1a1a1a;padding:.4rem .6rem;margin-bottom:.4rem;font-family:'JetBrains Mono',monospace}
+.transition-tuple .highlight{color:var(--green)}
+#pda-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
+#pda-actions button{background:#0a0a0a;border:1px solid #333;color:var(--green);padding:8px 20px;font-family:'JetBrains Mono',monospace;font-size:.8rem;cursor:pointer;transition:all .2s}
+#pda-actions button:disabled{opacity:.25;cursor:not-allowed}
+#pda-actions button:disabled:hover{border-color:#333;background:transparent}
+.toggle-wrap{display:flex;align-items:center;gap:8px;margin-top:.5rem;font-size:.72rem;color:#666}
+.toggle-wrap input[type="checkbox"]{-webkit-appearance:none;appearance:none;width:36px;height:18px;background:#1a1a1a;border:1px solid #333;border-radius:9px;position:relative;cursor:pointer;transition:all .3s;flex-shrink:0}
+.toggle-wrap input[type="checkbox"]:checked{background:rgba(0,255,65,.15);border-color:var(--green)}
+.toggle-wrap input[type="checkbox"]::after{content:'';position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#555;transition:all .3s}
+.toggle-wrap input[type="checkbox"]:checked::after{left:20px;background:var(--green)}
+#trace-area{background:#080808;border:1px solid #1a1a1a;padding:.5rem;max-height:120px;overflow-y:auto;font-size:.72rem;margin-top:.6rem;line-height:1.5}
+.trace-line{padding:2px 0;color:#888}
+.trace-line.accept{color:var(--green)}
+.trace-line.reject{color:#ff4444}
+.trace-line.error{color:#ff6666}
+.trace-line.explain{color:var(--cyan);font-style:italic}
+/* TAPE */
+#tape-container{overflow-x:auto;margin:.6rem 0;padding-bottom:6px}
+#tape{display:flex;align-items:center;min-width:max-content}
+.tape-cell{width:44px;height:44px;border:1px solid #222;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:#080808;transition:all .3s;position:relative;color:#ccc}
+.tape-cell.active{border-color:var(--cyan);background:rgba(0,212,255,.06)}
+.tape-cell.active::after{content:'\25B2';position:absolute;bottom:-18px;color:var(--cyan);font-size:11px;animation:blink 1s step-end infinite;left:50%;transform:translateX(-50%)}
+.tape-cell.blank{color:#333}
+@keyframes blink{50%{opacity:0}}
+#tm-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:.5rem 0;padding:.5rem;background:#080808;border:1px solid #1a1a1a}
+#tm-controls label{font-size:.72rem;color:#666}
+#tm-controls select{background:#0a0a0a;border:1px solid #333;color:var(--cyan);font-family:'JetBrains Mono',monospace;padding:4px 8px;font-size:.78rem}
+#tm-controls select:focus{outline:none;border-color:var(--cyan)}
+#tm-controls button{background:#0a0a0a;border:1px solid var(--cyan);color:var(--cyan);padding:6px 20px;font-family:'JetBrains Mono',monospace;font-size:.8rem;cursor:pointer;transition:all .2s}
+#tm-controls button:hover:not(:disabled){background:rgba(0,212,255,.1)}
+#tm-controls button:disabled{opacity:.25;cursor:not-allowed}
+#instant-desc{font-size:.78rem;color:var(--cyan);background:#080808;border:1px solid #1a1a1a;padding:.5rem;margin:.5rem 0;line-height:1.5;font-family:'JetBrains Mono',monospace}
+#instant-desc .id-label{color:#666;font-size:.65rem;text-transform:uppercase;letter-spacing:1px}
+#tm-history{font-size:.7rem;color:#888;background:#080808;border:1px solid #1a1a1a;padding:.4rem;max-height:100px;overflow-y:auto;margin:.5rem 0;line-height:1.6}
+#tm-history .h-entry{padding:1px 0}
+#tm-rules{font-size:.7rem;line-height:1.5;margin:.3rem 0;color:#666}
+#tm-rules .rule{color:#888}
+#tm-rules .rule .sym{color:var(--cyan)}
+/* ROOM 3 */
+#problem-card{border:1px solid #222;padding:1.2rem;margin:.8rem 0;background:#080808}
+#problem-card .problem-number{font-size:.7rem;color:#666;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+#problem-card .problem-text{font-size:.88rem;margin-bottom:1rem;line-height:1.5;color:#ccc}
+.classify-btns{display:flex;flex-wrap:wrap;gap:6px}
+.classify-btns button{flex:1;min-width:140px;padding:10px 10px;background:#0a0a0a;border:1px solid #333;color:#888;font-family:'JetBrains Mono',monospace;font-size:.78rem;cursor:pointer;transition:all .2s}
+.classify-btns button:hover:not(:disabled){border-color:#666;color:#ccc}
+.classify-btns button:disabled{opacity:.3;cursor:not-allowed}
+.classify-btns button.correct{border-color:var(--green);color:var(--green);background:rgba(0,255,65,.08)}
+.classify-btns button.wrong{border-color:#ff3333;color:#ff4444;background:rgba(255,0,0,.08)}
+#feedback-box{margin-top:.6rem;padding:.6rem;border-left:3px solid #333;font-size:.78rem;line-height:1.6;min-height:3rem}
+#feedback-box.good{border-left-color:var(--green);color:var(--green)}
+#feedback-box.bad{border-left-color:#ff4444;color:#ff8888}
+#feedback-box.hint{border-left-color:var(--cyan);color:var(--cyan)}
+#room3-score{font-size:.78rem;color:#666;margin-top:.6rem}
+#hint-area{margin-top:.6rem;display:flex;gap:8px;align-items:center}
+#hint-area button{background:#0a0a0a;border:1px solid #333;color:var(--cyan);padding:5px 14px;font-family:'JetBrains Mono',monospace;font-size:.72rem;cursor:pointer;transition:all .2s}
+#hint-area button:hover:not(:disabled){border-color:var(--cyan)}
+#hint-area button:disabled{opacity:.3;cursor:not-allowed}
+#hint-area .hint-count{font-size:.7rem;color:#666}
+/* LIVES */
+#lives-display{font-size:1rem;letter-spacing:3px;margin-bottom:.4rem;text-align:right}
+#lives-display .heart{display:inline-block;transition:all .3s;cursor:default}
+#lives-display .heart.lost{opacity:.2;transform:scale(.8);filter:grayscale(1)}
+#lives-display .heart.pulse{animation:heartPulse .5s ease}
+@keyframes heartPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+/* VICTORY */
+#victory-screen{display:none;padding:2rem 1.5rem;text-align:center}
+#victory-screen.active{display:block}
+#victory-screen .victory-art{font-size:clamp(8px,1.5vw,13px);white-space:pre;line-height:1.2;color:var(--green);margin-bottom:1rem}
+#victory-screen h2{font-size:1.4rem;letter-spacing:5px;margin-bottom:.5rem;color:var(--green)}
+#victory-screen .rank{font-size:1rem;color:var(--cyan);margin-bottom:.5rem;letter-spacing:3px}
+#victory-screen .stats{background:#080808;border:1px solid #1a1a1a;padding:1rem;margin:1rem auto;max-width:420px;text-align:left;font-size:.8rem;line-height:2}
+#victory-screen .stats .stat-row{display:flex;justify-content:space-between}
+#victory-screen .stats .stat-label{color:#666}
+#victory-screen .stats .stat-value{color:#ccc;font-weight:600}
+#victory-screen .stats .stat-value.gold{color:var(--cyan)}
+#victory-screen .stats .stat-value.high{color:var(--green)}
+/* TRANSITION */
+#transition-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.95);z-index:9999;display:none;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+#transition-overlay.active{display:flex}
+#transition-overlay .loader-text{font-size:.9rem;color:var(--green);margin-bottom:1rem;letter-spacing:2px}
+#transition-overlay .loader-bar{width:300px;max-width:70%;height:4px;background:#1a1a1a;border-radius:2px;overflow:hidden}
+#transition-overlay .loader-bar .fill{height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--cyan),var(--magenta));border-radius:2px;transition:width .15s linear}
+#transition-overlay .loader-sub{font-size:.7rem;color:#555;margin-top:.6rem}
+/* BUTTONS */
+.btn-ghost{background:transparent;border:1px solid #333;color:#888;padding:6px 16px;font-family:'JetBrains Mono',monospace;font-size:.72rem;cursor:pointer;transition:all .2s}
+.btn-ghost:hover{border-color:#666;color:#ccc}
+.btn-reset{background:transparent;border:1px solid #ff4444;color:#ff4444;padding:6px 16px;font-family:'JetBrains Mono',monospace;font-size:.72rem;cursor:pointer;transition:all .2s}
+.btn-reset:hover{background:rgba(255,68,68,.1)}
+.action-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:.5rem 0}
+.flex-1{flex:1}
+/* RESPONSIVE */
+@media(max-width:768px){
+  #game-container{padding:0}
+  .room{padding:1rem}
+  .tape-cell{width:34px;height:34px;font-size:.9rem}
+  #pda-layout{flex-direction:column}
+  #pda-stack-col{flex:1;min-height:80px}
+  .classify-btns button{min-width:100px;font-size:.72rem}
+  .room-tab{font-size:.6rem;padding:8px 4px}
+  .room-tab .badge{width:6px;height:6px}
+  .btn-primary{padding:12px 32px;font-size:1rem}
+  #hud{font-size:.65rem;padding:4px 10px}
+}
+@media(max-width:480px){
+  .classify-btns{flex-direction:column}
+  .classify-btns button{min-width:auto}
+  #tm-controls select{font-size:.7rem;padding:3px 5px}
+}
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+<div id="scanlines"></div>
+
+<!-- TRANSITION OVERLAY -->
+<div id="transition-overlay">
+  <div class="loader-text" id="loader-text">CARGANDO SIGUIENTE MÓDULO...</div>
+  <div class="loader-bar"><div class="fill" id="loader-fill"></div></div>
+  <div class="loader-sub" id="loader-sub">Inicializando subsistema...</div>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div class="hud-item"><span class="hud-label">PUNTAJE</span><span class="hud-value hud-score" id="hud-score">0</span></div>
+  <div class="hud-item"><span class="hud-label">SALA</span><span class="hud-value" id="hud-room">1/3</span></div>
+  <div class="hud-item"><span class="hud-label">HIGH</span><span class="hud-value hud-score" id="hud-high">0</span></div>
+  <div id="progress-bar" title="Progreso global"><div class="fill" id="progress-fill"></div></div>
+  <div class="hud-item"><button class="btn-ghost" onclick="resetCurrent()" style="font-size:.65rem;padding:3px 10px">REINICIAR</button></div>
+  <div class="hud-item"><span id="timer-display" style="color:#666;font-size:.65rem">00:00</span></div>
+</div>
+
+<!-- START SCREEN -->
+<div id="start-screen">
+  <div class="terminal-box">
+    <div class="title-art">
+╔══════════════════════════════════════════════╗
+║         ████████  ██   ██  ██████            ║
+║            ██     ██   ██  ██  ██            ║
+║            ██     ███████  ██████            ║
+║            ██     ██   ██  ██ ██             ║
+║            ██     ██   ██  ██  ██            ║
+║                                              ║
+║         T U R I N G ' S   E S C A P E        ║
+╚══════════════════════════════════════════════╝
+    </div>
+    <div class="story-text">
+      <p><span style="color:#666">> SISTEMA INICIADO // FECHA: 2047.03.18 // ESTADO: CRÍTICO</span></p>
+      <p style="margin-top:1rem">Estás atrapado dentro de la <span class="highlight-green">Máquina Universal de Turing</span>.</p>
+      <p>Para escapar, debes demostrar que comprendes las reglas que gobiernan</p>
+      <p>toda la computación teórica.</p>
+      <p style="margin-top:.8rem">Tres salas te esperan. Cada una prueba un modelo formal distinto.</p>
+      <p>Cada error drena tu energía. Domínalos todos y la máquina te liberará.</p>
+      <p style="margin-top:.8rem;color:#666">// SALA 1: <span class="highlight-green">Autómata con Pila</span></p>
+      <p style="color:#666">// SALA 2: <span class="highlight-cyan">Máquina de Turing</span></p>
+      <p style="color:#666">// SALA 3: <span class="highlight-magenta">Decidibilidad y Jerarquía</span></p>
+    </div>
+    <div class="system-prompt">
+      <span style="color:var(--green)">usuario@maquina:~$</span> ./escape --iniciar
+    </div>
+    <button class="btn-primary" onclick="startGame()">[ INICIAR ESCAPE ]</button>
+  </div>
+</div>
+
+<!-- GAME CONTAINER -->
+<div id="game-container">
+  <div id="room-progress">
+    <div class="room-tab active" id="tab-0"><span class="badge green"></span>SALA 1 · PILA</div>
+    <div class="room-tab locked" id="tab-1"><span class="badge cyan"></span>SALA 2 · CINTA</div>
+    <div class="room-tab locked" id="tab-2"><span class="badge magenta"></span>SALA 3 · ORÁCULO</div>
+  </div>
+
+  <div id="lives-display"><span id="lives-hearts">❤❤❤❤❤</span></div>
+
+  <!-- ROOM 0: PDA -->
+  <div class="room active" data-room="0" id="room-0">
+    <div class="room-title" id="room0-title">▌ SALA 1: LA PILA — AUTÓMATA CON PILA</div>
+    <div class="room-subtitle" id="room0-subtitle"></div>
+    <div class="sys-msg" id="room0-msg">Sistema listo. Selecciona una cadena de prueba para comenzar.</div>
+    <div class="test-select" id="pda-test-select">
+      <button data-str="aabb" class="selected" onclick="selectPDA('aabb')">aabb (✓)</button>
+      <button data-str="aaabbb" onclick="selectPDA('aaabbb')">aaabbb (✓)</button>
+      <button data-str="aaab" onclick="selectPDA('aaab')">aaab (✗)</button>
+      <button data-str="b" onclick="selectPDA('b')">b (✗)</button>
+    </div>
+    <div class="input-display" id="pda-input"></div>
+    <div id="pda-layout">
+      <div id="pda-stack-col">
+        <div class="stack-label">PILA <span style="color:#666" id="stack-size"></span></div>
+        <div class="stack-container" id="stack-column"></div>
+      </div>
+      <div id="pda-info">
+        <div id="pda-rules">
+          <div class="rule"><span class="sym">δ(q₀, a, Z₀)</span> = (q₀, aZ₀) — PUSH a</div>
+          <div class="rule"><span class="sym">δ(q₀, a, a)</span> = (q₀, aa) — PUSH a</div>
+          <div class="rule"><span class="sym">δ(q₀, b, a)</span> = (q₁, ε) — POP a q₁</div>
+          <div class="rule"><span class="sym">δ(q₁, b, a)</span> = (q₁, ε) — POP</div>
+          <div class="rule"><span class="sym">δ(q₁, ε, Z₀)</span> = (q₂, Z₀) — ACEPTAR</div>
+        </div>
+        <div class="transition-tuple" id="pda-current-tuple">▸ Esperando acción...</div>
+        <div id="pda-actions">
+          <button onclick="pdaAction('push')">PUSH 'a'</button>
+          <button onclick="pdaAction('pop')">POP</button>
+          <button onclick="pdaAction('accept')">ACEPTAR</button>
+          <button onclick="pdaAction('reject')">RECHAZAR</button>
+        </div>
+        <div class="toggle-wrap">
+          <input type="checkbox" id="explain-toggle">
+          <label for="explain-toggle">Modo explicación formal</label>
+        </div>
+      </div>
+    </div>
+    <div id="trace-area" style="max-height:130px"></div>
+  </div>
+
+  <!-- ROOM 1: TM -->
+  <div class="room" data-room="1" id="room-1">
+    <div class="room-title" id="room1-title">▌ SALA 2: LA CINTA — MÁQUINA DE TURING</div>
+    <div class="room-subtitle" id="room1-subtitle"></div>
+    <div class="sys-msg" id="room1-msg">Sistema listo. Selecciona una cadena para simular.</div>
+    <div class="test-select" id="tm-test-select">
+      <button data-str="01" class="selected" onclick="selectTM('01')">01 (✓)</button>
+      <button data-str="001" onclick="selectTM('001')">001 (✗)</button>
+    </div>
+    <div id="instant-desc"><span class="id-label">DESCRIPCIÓN INSTANTÁNEA</span><br><span id="id-content">—</span></div>
+    <div id="tape-container"><div id="tape"></div></div>
+    <div id="tm-rules">
+      <div class="rule"><span class="sym">δ(q₀,0)</span>=(q₁,X,R) <span class="sym">δ(q₁,0)</span>=(q₁,0,R) <span class="sym">δ(q₁,Y)</span>=(q₁,Y,R)</div>
+      <div class="rule"><span class="sym">δ(q₁,1)</span>=(q₂,Y,L) <span class="sym">δ(q₂,0)</span>=(q₂,0,L) <span class="sym">δ(q₂,Y)</span>=(q₂,Y,L)</div>
+      <div class="rule"><span class="sym">δ(q₂,X)</span>=(q₀,X,R) <span class="sym">δ(q₀,Y)</span>=(q₃,Y,R) <span class="sym">δ(q₃,Y)</span>=(q₃,Y,R)</div>
+      <div class="rule"><span class="sym">δ(q₃,B)</span>=(qA,B,R) <span class="sym">δ(q₀,B)</span>=(qR,B,R) <span style="color:#555">(indefinido → qR)</span></div>
+    </div>
+    <div id="tm-controls">
+      <label>Escribir:</label>
+      <select id="tm-write"><option value="0">0</option><option value="1">1</option><option value="X">X</option><option value="Y">Y</option><option value="B">B</option></select>
+      <label>Mover:</label>
+      <select id="tm-dir"><option value="L">← L</option><option value="R">→ R</option></select>
+      <label>Estado:</label>
+      <select id="tm-state">
+        <option value="q0">q₀</option><option value="q1">q₁</option><option value="q2">q₂</option>
+        <option value="q3">q₃</option><option value="qA">qA</option><option value="qR">qR</option>
+      </select>
+      <button onclick="tmStep()">EJECUTAR</button>
+      <button onclick="tmReject()" style="background:#0a0a0a;border:1px solid #ff4444;color:#ff4444;padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:.78rem;cursor:pointer">RECHAZAR</button>
+      <button onclick="tmAccept()" id="tm-accept-btn" style="background:#0a0a0a;border:1px solid var(--green);color:var(--green);padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:.78rem;cursor:pointer">ACEPTAR</button>
+    </div>
+    <div id="tm-history"></div>
+  </div>
+
+  <!-- ROOM 2: DECIDIBILIDAD -->
+  <div class="room" data-room="2" id="room-2">
+    <div class="room-title" id="room2-title">▌ SALA 3: EL ORÁCULO — DECIDIBILIDAD</div>
+    <div class="room-subtitle" id="room2-subtitle"></div>
+    <div class="sys-msg" id="room2-msg">Clasifica cada problema según su lugar en la jerarquía de decidibilidad.</div>
+    <div id="problem-card">
+      <div class="problem-number" id="prob-num"></div>
+      <div class="problem-text" id="prob-text"></div>
+      <div class="classify-btns">
+        <button onclick="classify('decidable')">DECIDIBLE</button>
+        <button onclick="classify('recognizable')">RECONOCIBLE (no decidible)</button>
+        <button onclick="classify('undecidable')">IRRECONOCIBLE</button>
+      </div>
+      <div id="feedback-box"></div>
+    </div>
+    <div id="hint-area">
+      <button id="hint-btn" onclick="useHint()">[?] PISTA</button>
+      <span class="hint-count">(1 disponible por sala)</span>
+    </div>
+    <div id="room3-score"></div>
+  </div>
+
+  <!-- VICTORY -->
+  <div id="victory-screen">
+    <div class="victory-art">
+╔══════════════════════════════════════════╗
+║     ███████╗ ██████╗ █████╗ ██████╗     ║
+║     ██╔════╝██╔════╝██╔══██╗██╔══██╗   ║
+║     █████╗  ██║     ███████║██████╔╝   ║
+║     ██╔══╝  ██║     ██╔══██║██╔═══╝    ║
+║     ███████╗╚██████╗██║  ██║██║        ║
+║     ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝        ║
+╚══════════════════════════════════════════╝
+    </div>
+    <h2>ESCAPE EXITOSO</h2>
+    <div class="rank" id="final-rank"></div>
+    <div class="stats" id="final-stats"></div>
+    <button class="btn-primary" onclick="resetGame()" style="margin-top:1rem">[ VOLVER AL INICIO ]</button>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// MATRIX RAIN — Canvas Background
+// ================================================================
+;(function initMatrix(){
+  const c=document.getElementById('matrix-canvas');
+  const ctx=c.getContext('2d');
+  let W,H,cols=[],drops=[];
+  function resize(){
+    W=c.width=window.innerWidth;
+    H=c.height=window.innerHeight;
+    cols=Math.floor(W/16);
+    drops=Array(cols).fill(1);
+  }
+  window.addEventListener('resize',resize);
+  resize();
+  const chars='アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEF';
+  function draw(){
+    ctx.fillStyle='rgba(13,13,13,.08)';
+    ctx.fillRect(0,0,W,H);
+    ctx.font='14px monospace';
+    for(let i=0;i<drops.length;i++){
+      const ch=chars[Math.floor(Math.random()*chars.length)];
+      ctx.fillStyle=i%3===0?'rgba(0,255,65,.4)':i%3===1?'rgba(0,212,255,.3)':'rgba(255,0,160,.2)';
+      ctx.fillText(ch,i*16,drops[i]*16);
+      if(drops[i]*16>H&&Math.random()>.98)drops[i]=0;
+      drops[i]++;
+    }
+  }
+  setInterval(draw,50);
+})();
+
+// ================================================================
+// GAME STATE
+// ================================================================
+const G = {
+  room: 0,
+  lives: [5,5,5],
+  unlocked: [true,false,false],
+  completed: [false,false,false],
+  score: 0,
+  totalErrors: 0,
+  hintsUsed: 0,
+  startTime: null,
+  roomStartTime: null,
+  stringStartTime: null,
+  highScore: parseInt(localStorage.getItem('turingEscapeHigh')) || 0,
+  timerInterval: null,
+  pdaDone: new Set(),
+  tmDone: new Set()
+};
+
+// ================================================================
+// TYPEWRITER
+// ================================================================
+function typewriter(el, text, speed, cb){
+  if(!el)return;
+  el.textContent='';
+  let i=0;
+  function tick(){
+    if(i<text.length){
+      el.textContent+=text[i++];
+      setTimeout(tick,speed||30);
+    }else if(cb)cb();
+  }
+  tick();
+}
+
+// ================================================================
+// TIMER
+// ================================================================
+function startTimer(){
+  if(G.timerInterval)clearInterval(G.timerInterval);
+  G.startTime=Date.now();
+  G.timerInterval=setInterval(updateTimer,200);
+}
+function updateTimer(){
+  if(!G.startTime)return;
+  const s=Math.floor((Date.now()-G.startTime)/1000);
+  const m=Math.floor(s/60),sec=s%60;
+  document.getElementById('timer-display').textContent=
+    String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
+function stopTimer(){
+  if(G.timerInterval){clearInterval(G.timerInterval);G.timerInterval=null;}
+}
+function getElapsed(){
+  return G.startTime?(Date.now()-G.startTime)/1000:0;
+}
+function getStringTime(){
+  return G.stringStartTime?(Date.now()-G.stringStartTime)/1000:0;
+}
+function getSpeedBonus(){
+  return getStringTime()<=30?200:0;
+}
+
+function addScore(pts){
+  if(pts>0||G.score+pts>=0)G.score+=pts;
+  else G.score=0;
+  updateHUD();
+}
+function updateHUD(){
+  document.getElementById('hud-score').textContent=G.score;
+  document.getElementById('hud-room').textContent=(G.room+1)+'/3';
+  document.getElementById('hud-high').textContent=G.highScore;
+  const pct=((G.completed.filter(Boolean).length)/3)*100;
+  document.getElementById('progress-fill').style.width=pct+'%';
+}
+function updateLives(){
+  const l=G.lives[G.room];
+  const el=document.getElementById('lives-hearts');
+  el.innerHTML='';
+  for(let i=0;i<5;i++){
+    const s=document.createElement('span');
+    s.className='heart'+(i>=l?' lost':'');
+    s.textContent='❤';
+    if(i===0&&l>0)s.classList.add('pulse');
+    el.appendChild(s);
+  }
+}
+
+// ================================================================
+// START / TRANSITIONS
+// ================================================================
+function startGame(){
+  document.getElementById('start-screen').style.display='none';
+  document.getElementById('game-container').classList.add('active');
+  document.getElementById('hud').classList.add('show');
+  G.room=0;G.lives=[5,5,5];G.unlocked=[true,false,false];
+  G.completed=[false,false,false];G.score=0;G.totalErrors=0;G.hintsUsed=0;
+  G.pdaDone=new Set();G.tmDone=new Set();
+  updateHUD();updateLives();updateProgress();startTimer();
+  showTransition(0,()=>{
+    initRoom0();
+  });
+}
+
+function showTransition(roomNum, cb){
+  const over=document.getElementById('transition-overlay');
+  const text=document.getElementById('loader-text');
+  const fill=document.getElementById('loader-fill');
+  const sub=document.getElementById('loader-sub');
+  const labels=['INICIALIZANDO SALA 1: PILA...','CARGANDO SALA 2: CINTA...','ACCESANDO SALA 3: ORÁCULO...'];
+  const subs=['Cargando módulo de autómatas con pila...','Inicializando cinta y cabezal...','Estableciendo conexión con el oráculo...'];
+  text.textContent=labels[roomNum]||'COMPLETANDO SISTEMA...';
+  sub.textContent=subs[roomNum]||'';
+  fill.style.width='0%';
+  over.classList.add('active');
+  let p=0;
+  const iv=setInterval(()=>{
+    p+=Math.random()*15+5;
+    if(p>100)p=100;
+    fill.style.width=p+'%';
+    if(p>=100){
+      clearInterval(iv);
+      setTimeout(()=>{
+        over.classList.remove('active');
+        fill.style.width='0%';
+        if(cb)cb();
+      },300);
+    }
+  },120);
+}
+
+function updateProgress(){
+  const names=['tab-0','tab-1','tab-2'];
+  for(let i=0;i<3;i++){
+    const el=document.getElementById(names[i]);
+    el.className='room-tab';
+    if(G.completed[i])el.classList.add('done');
+    else if(i===G.room)el.classList.add('active');
+    else if(!G.unlocked[i])el.classList.add('locked');
+  }
+}
+
+// ================================================================
+// ROOM 0 — PDA
+// L = { aⁿ bⁿ | n ≥ 1 }
+// ================================================================
+const PDA_STRINGS = {
+  aabb: 'aabb', aaabbb: 'aaabbb', aaab: 'aaab', b: 'b'
+};
+// Expected results
+const PDA_EXPECTED = {
+  aabb: 'accept', aaabbb: 'accept', aaab: 'reject', b: 'reject'
+};
+
+let P = null;
+
+function initRoom0(){
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  document.getElementById('room-0').classList.add('active');
+  G.room=0;G.roomStartTime=Date.now();
+  updateLives();updateProgress();
+  // Typewriter on title
+  const t=document.getElementById('room0-title');
+  t.style.borderRight='2px solid var(--green)';
+  typewriter(t,'▌ SALA 1: LA PILA — AUTÓMATA CON PILA',25,()=>{
+    t.style.borderRight='2px solid transparent';
+    typewriter(document.getElementById('room0-subtitle'),
+      'L = { aⁿ bⁿ | n ≥ 1 }  //  δ(q₀, a, Z₀) = (q₀, aZ₀)  │  Elige la acción correcta en cada paso.',
+      15,()=>{
+        const m=document.getElementById('room0-msg');
+        m.className='sys-msg green';
+        typewriter(m,'> SISTEMA: Autómata con Pila inicializado. Selecciona una cadena y demuestra que comprendes las transiciones.',12);
+      });
+  });
+  // Ensure selectors are reset
+  document.querySelectorAll('#pda-test-select button').forEach(b=>b.classList.remove('done'));
+  document.querySelector('#pda-test-select button[data-str="aabb"]').classList.add('selected');
+  G.pdaDone=new Set();
+  document.getElementById('trace-area').innerHTML='';
+  resetPDA('aabb');
+}
+
+function resetPDA(testStr){
+  P={
+    input:testStr,
+    pos:0,
+    stack:['Z₀'],
+    state:'q0',
+    done:false,
+    result:null,
+    trace:[]
+  };
+  G.stringStartTime=Date.now();
+  renderPDA();
+  document.getElementById('trace-area').innerHTML='';
+  enablePDABtns(true);
+  document.getElementById('pda-current-tuple').innerHTML='▸ <span style="color:#666">Esperando acción...</span>';
+  const m=document.getElementById('room0-msg');
+  m.textContent='Elige la transición correcta para el paso actual.';
+  m.className='sys-msg green';
+}
+
+function renderPDA(){
+  if(!P)return;
+  const inp=P.input,pos=P.pos;
+  let html='Entrada: ';
+  if(pos>0)html+='<span class="consumed">'+inp.substring(0,pos)+'</span>';
+  if(pos<inp.length)html+='<span class="current">'+inp[pos]+'</span>';
+  if(pos+1<inp.length)html+='<span class="remaining">'+inp.substring(pos+1)+'</span>';
+  if(pos>=inp.length)html+='<span style="color:#ffcc00"> ▐FIN▐</span>';
+  document.getElementById('pda-input').innerHTML=html;
+
+  const top=P.stack.length?P.stack[P.stack.length-1]:'∅';
+  // state display in transition tuple area
+  document.getElementById('pda-current-tuple').innerHTML=
+    '▸ Estado: <span class="highlight">'+P.state+'</span> | '+
+    'Símbolo: <span class="highlight">'+(pos<inp.length?inp[pos]:'ε')+'</span> | '+
+    'Tope: <span class="highlight">'+top+'</span>';
+
+  const col=document.getElementById('stack-column');
+  col.innerHTML='';
+  for(let i=P.stack.length-1;i>=0;i--){
+    const d=document.createElement('div');
+    d.className='stack-cell';
+    d.textContent=P.stack[i];
+    if(P.stack[i]==='Z₀')d.style.borderColor='#555';
+    if(i===P.stack.length-1)d.style.borderColor='var(--green)';
+    col.appendChild(d);
+  }
+  if(!P.stack.length){
+    const d=document.createElement('div');
+    d.className='stack-cell';d.textContent='∅';d.style.color='#555';d.style.borderColor='#555';
+    col.appendChild(d);
+  }
+  document.getElementById('stack-size').textContent='['+P.stack.length+']';
+}
+
+function addTrace(msg,cls){
+  if(!P)return;
+  P.trace.push({msg,cls});
+  const ta=document.getElementById('trace-area');
+  const d=document.createElement('div');
+  d.className='trace-line'+(cls?' '+cls:'');
+  d.textContent=msg;
+  ta.appendChild(d);
+  ta.scrollTop=ta.scrollHeight;
+}
+
+function enablePDABtns(en){
+  document.querySelectorAll('#pda-actions button').forEach(b=>b.disabled=!en);
+}
+
+function getCorrectPDAAction(){
+  const sym=P.pos<P.input.length?P.input[P.pos]:'ε';
+  const top=P.stack.length?P.stack[P.stack.length-1]:null;
+  const key=P.state+','+sym+','+top;
+  if(key==='q1,ε,Z₀')return 'accept';
+  if((key==='q0,a,Z₀'||key==='q0,a,a')&&P.state==='q0'&&sym==='a')return 'push';
+  if(key==='q0,b,a')return 'pop';
+  if(key==='q1,b,a')return 'pop';
+  return 'reject';
+}
+
+function getTransitionDesc(action){
+  const sym=P.pos<P.input.length?P.input[P.pos]:'ε';
+  const top=P.stack.length?P.stack[P.stack.length-1]:null;
+  if(P.state==='q1'&&sym==='ε'&&top==='Z₀')
+    return 'δ(q₁, ε, Z₀) = (q₂, Z₀) — ACEPTAR';
+  if(P.state==='q0'&&sym==='a'&&(top==='Z₀'||top==='a'))
+    return 'δ(q₀, a, '+top+') = (q₀, a'+top+') — PUSH a';
+  if(P.state==='q0'&&sym==='b'&&top==='a')
+    return 'δ(q₀, b, a) = (q₁, ε) — POP (q₀ → q₁)';
+  if(P.state==='q1'&&sym==='b'&&top==='a')
+    return 'δ(q₁, b, a) = (q₁, ε) — POP';
+  return 'No hay transición definida — RECHAZAR (qR)';
+}
+
+function getExplanation(){
+  const sym=P.pos<P.input.length?P.input[P.pos]:'ε';
+  const top=P.stack.length?P.stack[P.stack.length-1]:null;
+  if(P.state==='q1'&&sym==='ε'&&top==='Z₀')
+    return 'La pila ha quedado vacía (solo Z₀), se han consumido todos los símbolos de entrada, y estamos en q₁. La única transición posible es δ(q₁, ε, Z₀)=(q₂, Z₀), lo que indica que la cadena es aceptada porque cada a fue emparejada con una b.';
+  if(P.state==='q0'&&sym==='a'&&(top==='Z₀'||top==='a'))
+    return 'En q₀ con entrada a, debemos apilar a para recordar que hay una a pendiente de emparejar. Esto es consistente con la regla de aceptación de L={aⁿbⁿ}.';
+  if((P.state==='q0'||P.state==='q1')&&sym==='b'&&top==='a')
+    return 'Al encontrar b con a en el tope, desapilamos la a, indicando que esta a se ha emparejado con esta b. Si estamos en q₀, la transición nos mueve a q₁.';
+  return 'Al no haber transición definida para esta configuración, la cadena no puede ser aceptada y debe ser rechazada.';
+}
+
+function pdaAction(action){
+  if(!P||P.done)return;
+  const correct=getCorrectPDAAction();
+  if(action!==correct){
+    // Wrong
+    G.lives[0]--;G.totalErrors++;
+    addScore(-50);
+    updateLives();
+    const msg=document.getElementById('room0-msg');
+    const correctDesc=getTransitionDesc(correct);
+    msg.innerHTML='✗ Incorrecto. La transición correcta es: <strong>'+correctDesc+'</strong>';
+    msg.className='sys-msg error';
+    addTrace('✗ Elegiste "'+action.toUpperCase()+'". Correcto era "'+correct.toUpperCase()+'".','error');
+    if(document.getElementById('explain-toggle').checked){
+      addTrace('📘 '+getExplanation(),'explain');
+    }
+    enablePDABtns(false);
+    if(G.lives[0]<=0){
+      msg.textContent='Vidas agotadas. Reintentando cadena.';
+      msg.className='sys-msg error';
+      setTimeout(()=>{resetPDA(P.input);G.lives[0]=5;updateLives();enablePDABtns(true);},2000);
+    }else{
+      setTimeout(()=>{resetPDA(P.input);enablePDABtns(true);},1800);
+    }
+    return;
+  }
+
+  // Correct action
+  const explain=document.getElementById('explain-toggle').checked;
+  addScore(100);
+  const desc=getTransitionDesc(action);
+  addTrace('✓ '+desc,'accept');
+  if(explain)addTrace('📘 '+getExplanation(),'explain');
+
+  if(action==='push'){
+    P.stack.push('a');
+    P.pos++;
+  }else if(action==='pop'){
+    P.stack.pop();
+    P.state='q1';
+    P.pos++;
+  }else if(action==='accept'){
+    P.done=true;P.result='accept';
+    addTrace('✓ Cadena '+P.input+' ACEPTADA.','accept');
+    const bonus=getSpeedBonus();
+    if(bonus>0){addScore(bonus);addTrace('⏱ +'+bonus+' pts por velocidad (<30s).','accept');}
+    const msg=document.getElementById('room0-msg');
+    msg.innerHTML='✓ ¡Correcto! <strong>'+P.input+'</strong> es aceptada por el autómata con pila.';
+    msg.className='sys-msg success';
+    enablePDABtns(false);
+    markPDADone(P.input);
+    renderPDA();
+    return;
+  }else if(action==='reject'){
+    P.done=true;P.result='reject';
+    addTrace('✓ Cadena '+P.input+' RECHAZADA.','reject');
+    const bonus=getSpeedBonus();
+    if(bonus>0){addScore(bonus);addTrace('⏱ +'+bonus+' pts por velocidad (<30s).','accept');}
+    const msg=document.getElementById('room0-msg');
+    msg.innerHTML='✓ Correcto. <strong>'+P.input+'</strong> es rechazada (no hay transición definida).';
+    msg.className='sys-msg success';
+    enablePDABtns(false);
+    markPDADone(P.input);
+    renderPDA();
+    return;
+  }
+  renderPDA();
+  document.getElementById('room0-msg').textContent='✓ Correcto. Continúa con el siguiente paso.';
+  document.getElementById('room0-msg').className='sys-msg green';
+}
+
+function markPDADone(str){
+  G.pdaDone.add(str);
+  document.querySelector('#pda-test-select button[data-str="'+str+'"]').classList.add('done');
+  if(G.pdaDone.size>=4){
+    G.completed[0]=true;
+    updateProgress();
+    document.getElementById('room0-msg').textContent='¡SALA 1 COMPLETADA! Has dominado el autómata con pila.';
+    document.getElementById('room0-msg').className='sys-msg success';
+    enablePDABtns(false);
+    setTimeout(()=>{
+      G.room=1;G.unlocked[1]=true;
+      updateProgress();
+      showTransition(1,()=>{initRoom1();});
+    },2500);
+  }else{
+    document.getElementById('room0-msg').innerHTML+=' Selecciona otra cadena para continuar.';
+    // Auto-select next untested string
+    const all=['aabb','aaabbb','aaab','b'];
+    const next=all.find(s=>!G.pdaDone.has(s));
+    if(next)selectPDA(next);
+  }
+}
+
+function selectPDA(str){
+  document.querySelectorAll('#pda-test-select button').forEach(b=>b.classList.remove('selected'));
+  document.querySelector('#pda-test-select button[data-str="'+str+'"]').classList.add('selected');
+  if(G.pdaDone.has(str)){
+    enablePDABtns(false);
+    document.getElementById('room0-msg').textContent='Cadena ya resuelta. Selecciona otra.';
+    document.getElementById('room0-msg').className='sys-msg';
+    return;
+  }
+  resetPDA(str);
+}
+
+// ================================================================
+// ROOM 1 — TM
+// L = { 0ⁿ 1ⁿ | n ≥ 1 }
+// ================================================================
+const TM_DELTA = {
+  'q0,0':{write:'X',dir:'R',next:'q1'},
+  'q1,0':{write:'0',dir:'R',next:'q1'},
+  'q1,Y':{write:'Y',dir:'R',next:'q1'},
+  'q1,1':{write:'Y',dir:'L',next:'q2'},
+  'q2,0':{write:'0',dir:'L',next:'q2'},
+  'q2,Y':{write:'Y',dir:'L',next:'q2'},
+  'q2,X':{write:'X',dir:'R',next:'q0'},
+  'q0,Y':{write:'Y',dir:'R',next:'q3'},
+  'q3,Y':{write:'Y',dir:'R',next:'q3'},
+  'q3,B':{write:'B',dir:'R',next:'qA'},
+  'q0,B':{write:'B',dir:'R',next:'qR'}
+};
+const TM_EXPECTED = { '01':'accept','001':'reject' };
+
+let T = null;
+let TMStepHistory = [];
+
+function markTMDone(str,result){
+  G.tmDone.add(str);
+  document.querySelector('#tm-test-select button[data-str="'+str+'"]').classList.add('done');
+  if(G.tmDone.size>=2){
+    G.completed[1]=true;
+    updateProgress();
+    document.getElementById('room1-msg').textContent='¡SALA 2 COMPLETADA! Has dominado la Máquina de Turing.';
+    document.getElementById('room1-msg').className='sys-msg success';
+    setTimeout(()=>{
+      G.room=2;G.unlocked[2]=true;
+      updateProgress();
+      showTransition(2,()=>{initRoom2();});
+    },2500);
+  }else{
+    document.getElementById('room1-msg').innerHTML+=' Selecciona otra cadena para continuar.';
+    const all=['01','001'];
+    const next=all.find(s=>!G.tmDone.has(s));
+    if(next)selectTM(next);
+  }
+}
+
+function initRoom1(){
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  document.getElementById('room-1').classList.add('active');
+  G.room=1;G.roomStartTime=Date.now();
+  G.tmDone=new Set();
+  updateLives();updateProgress();
+  TMStepHistory=[];
+  document.querySelectorAll('#tm-test-select button').forEach(b=>b.classList.remove('done'));
+  const t=document.getElementById('room1-title');
+  t.style.borderRight='2px solid var(--cyan)';
+  typewriter(t,'▌ SALA 2: LA CINTA — MÁQUINA DE TURING',25,()=>{
+    t.style.borderRight='2px solid transparent';
+    typewriter(document.getElementById('room1-subtitle'),
+      'L = { 0ⁿ 1ⁿ | n ≥ 1 }  //  δ(q₀,0)=(q₁,X,R)  │  Selecciona escribir, mover y estado, luego EJECUTA.',
+      15,()=>{
+        const m=document.getElementById('room1-msg');
+        m.className='sys-msg cyan';
+        typewriter(m,'> SISTEMA: Máquina de Turing lista. Selecciona cadena y elige la transición correcta en cada paso.',12);
+      });
+  });
+  document.querySelectorAll('#tm-test-select button').forEach(b=>b.classList.remove('done'));
+  document.getElementById('tm-history').innerHTML='';
+  resetTM('01');
+}
+
+function resetTM(testStr){
+  const tape=['B',...testStr.split(''),'B','B','B'];
+  T={testStr,tape,head:1,state:'q0',steps:0,done:false,result:null};
+  G.stringStartTime=Date.now();
+  TMStepHistory=[];
+  renderTM();
+  document.getElementById('tm-history').innerHTML='';
+  const sym=T.tape[T.head];
+  const key=T.state+','+sym;
+  const trans=TM_DELTA[key];
+  document.getElementById('id-content').textContent=T.state+' | '+formatTapeInst()+' | paso 0';
+  enableTM(true);
+  document.getElementById('room1-msg').textContent='Elige escribir, mover y estado, luego EJECUTAR.';
+  document.getElementById('room1-msg').className='sys-msg cyan';
+  document.getElementById('tm-write').value=trans?trans.write:'B';
+  document.getElementById('tm-dir').value=trans?trans.dir:'R';
+  document.getElementById('tm-state').value=trans?trans.next:'qR';
+}
+
+function formatTapeInst(){
+  if(!T)return'';
+  const left=T.tape.slice(0,T.head).join('');
+  const right=T.tape.slice(T.head).join('');
+  return left+' ['+T.state+'] '+right;
+}
+
+function renderTM(){
+  if(!T)return;
+  const tapeEl=document.getElementById('tape');
+  tapeEl.innerHTML='';
+  for(let i=0;i<T.tape.length;i++){
+    const c=document.createElement('div');
+    c.className='tape-cell'+(i===T.head?' active':'')+(T.tape[i]==='B'?' blank':'');
+    c.textContent=T.tape[i];
+    tapeEl.appendChild(c);
+  }
+}
+
+function enableTM(en){
+  document.querySelectorAll('#tm-controls select').forEach(s=>s.disabled=!en);
+  document.querySelectorAll('#tm-controls button').forEach(b=>b.disabled=!en);
+}
+
+function addTMHistory(entry){
+  TMStepHistory.push(entry);
+  if(TMStepHistory.length>5)TMStepHistory.shift();
+  const el=document.getElementById('tm-history');
+  el.innerHTML='<div style="color:#555;font-size:.65rem;margin-bottom:4px">▸ HISTORIAL (últimos 5)</div>'+
+    TMStepHistory.map(h=>'<div class="h-entry">'+h+'</div>').join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+function tmStep(){
+  if(!T||T.done)return;
+  const sym=T.tape[T.head];
+  const key=T.state+','+sym;
+  const expected=TM_DELTA[key];
+  const w=document.getElementById('tm-write').value;
+  const d=document.getElementById('tm-dir').value;
+  const s=document.getElementById('tm-state').value;
+
+  if(!expected){
+    // No transition defined — must reject to qR
+    if(s==='qR'){
+      T.state='qR';T.done=true;T.result='reject';
+      addScore(100);
+      const bonus=getSpeedBonus();
+      if(bonus>0){addScore(bonus);addTrace('⏱ +'+bonus+' pts velocidad','accept');}
+      addTMHistory('→ qR (no hay δ('+key+'))');
+      const id=document.getElementById('id-content');
+      id.textContent='qR | '+formatTapeInst()+' | RECHAZAR';
+      addTrace('✓ '+T.testStr+' RECHAZADA (no hay transición definida).','reject');
+      document.getElementById('room1-msg').innerHTML='✓ Correcto. <strong>'+T.testStr+'</strong> es rechazada.';
+      document.getElementById('room1-msg').className='sys-msg success';
+      addTMHistory('→ qR (no hay δ('+key+'))');
+      markTMDone(T.testStr,'reject');
+      document.getElementById('room1-msg').innerHTML='✓ Correcto. <strong>'+T.testStr+'</strong> es rechazada.';
+      document.getElementById('room1-msg').className='sys-msg success';
+      enableTM(false);
+      renderTM();
+      return;
+    }
+    failTM('No hay δ('+key+'). Debes escoger qR (escribe '+sym+', mueve R).',expected);
+    return;
+  }
+
+  if(w!==expected.write||d!==expected.dir||s!==expected.next){
+    failTM('Esperado: escribir='+expected.write+', mover='+expected.dir+', estado='+expected.next
+      +' [δ('+key+')='+expected.next+','+expected.write+','+expected.dir+']',expected);
+    return;
+  }
+
+  // Correct
+  addScore(100);
+  T.tape[T.head]=w;
+  const prevState=T.state;
+  T.state=s;
+  T.head+=(d==='R'?1:-1);
+  T.steps++;
+
+  const inst=formatTapeInst();
+  const id=document.getElementById('id-content');
+  id.textContent=s+' | '+inst;
+  addTMHistory('δ('+prevState+','+sym+')=('+s+','+w+','+d+') → '+s+' | '+inst);
+
+  if(T.state==='qA'){
+    T.done=true;T.result='accept';
+    addScore(100);
+    const bonus=getSpeedBonus();
+    if(bonus>0){addScore(bonus);}
+    id.textContent='qA | '+inst+' | ✓ ACEPTAR';
+    markTMDone(T.testStr,'accept');
+    document.getElementById('room1-msg').innerHTML='✓ ¡Correcto! <strong>'+T.testStr+'</strong> es aceptada.';
+    document.getElementById('room1-msg').className='sys-msg success';
+    enableTM(false);
+    renderTM();
+    return;
+  }
+  if(T.state==='qR'){
+    T.done=true;T.result='reject';
+    addScore(100);
+    const bonus=getSpeedBonus();
+    if(bonus>0){addScore(bonus);}
+    id.textContent='qR | '+inst+' | ✗ RECHAZAR';
+    markTMDone(T.testStr,'reject');
+    document.getElementById('room1-msg').innerHTML='✓ Correcto. <strong>'+T.testStr+'</strong> es rechazada.';
+    document.getElementById('room1-msg').className='sys-msg success';
+    enableTM(false);
+    renderTM();
+    return;
+  }
+
+  renderTM();
+  document.getElementById('room1-msg').textContent='✓ Correcto. Continúa. Siguiente transición.';
+  document.getElementById('room1-msg').className='sys-msg cyan';
+}
+
+function tmReject(){
+  if(!T||T.done)return;
+  const sym=T.tape[T.head];
+  const key=T.state+','+sym;
+  const expected=TM_DELTA[key];
+  if(expected){
+    // There IS a defined transition — using REJECT is wrong
+    document.getElementById('room1-msg').innerHTML='✗ Hay una transición definida δ('+key+'). Debes usar EJECUTAR con los valores correctos.';
+    document.getElementById('room1-msg').className='sys-msg error';
+    return;
+  }
+  // No transition → auto-set to qR and execute
+  document.getElementById('tm-write').value=sym;
+  document.getElementById('tm-dir').value='R';
+  document.getElementById('tm-state').value='qR';
+  tmStep();
+}
+
+function tmAccept(){
+  if(!T||T.done)return;
+  const sym=T.tape[T.head];
+  const key=T.state+','+sym;
+  const expected=TM_DELTA[key];
+  if(!expected||expected.next!=='qA'){
+    document.getElementById('room1-msg').innerHTML='✗ No es momento de ACEPTAR. Debes seguir las transiciones definidas con EJECUTAR.';
+    document.getElementById('room1-msg').className='sys-msg error';
+    return;
+  }
+  // Auto-set to the accepting transition and execute
+  document.getElementById('tm-write').value=expected.write;
+  document.getElementById('tm-dir').value=expected.dir;
+  document.getElementById('tm-state').value=expected.next;
+  tmStep();
+}
+
+function failTM(msg,expected){
+  G.lives[1]--;G.totalErrors++;
+  addScore(-50);
+  updateLives();
+  document.getElementById('room1-msg').innerHTML='✗ Incorrecto. '+msg;
+  document.getElementById('room1-msg').className='sys-msg error';
+  addTMHistory('✗ Error: '+msg);
+  addTrace('✗ Error: '+msg,'error');
+  if(expected){
+    addTrace('  → Debió ser: δ('+T.state+','+T.tape[T.head]+')=('+expected.next+','+expected.write+','+expected.dir+')','error');
+  }
+  enableTM(false);
+  if(G.lives[1]<=0){
+    setTimeout(()=>{resetTM(T.testStr);G.lives[1]=5;updateLives();enableTM(true);},2500);
+  }else{
+    setTimeout(()=>{resetTM(T.testStr);enableTM(true);},2000);
+  }
+}
+
+function selectTM(str){
+  document.querySelectorAll('#tm-test-select button').forEach(b=>b.classList.remove('selected'));
+  document.querySelector('#tm-test-select button[data-str="'+str+'"]').classList.add('selected');
+  if(G.tmDone.has(str)){
+    enableTM(false);
+    document.getElementById('room1-msg').textContent='Cadena ya resuelta. Selecciona otra.';
+    document.getElementById('room1-msg').className='sys-msg';
+    return;
+  }
+  resetTM(str);
+}
+
+// ================================================================
+// ROOM 2 — DECIDIBILIDAD
+// ================================================================
+const PROBLEMS = [
+  { num:1, text:'¿Acepta una Máquina de Turing M la cadena w? (Problema de Aceptación / Halting)', answer:'recognizable',
+    explanation:'A_TM es RECONOCIBLE: podemos simular M con w y aceptar si M acepta. No es decidible porque el Problema de la Parada se reduce a él. Es el ejemplo clásico de lenguaje Turing-reconocible que no es decidible.',
+    hint:'Piensa en la simulación directa. ¿Qué pasa si M nunca para sobre w? ¿Puede un algoritmo decidir eso?' },
+  { num:2, text:'¿Es vacío el lenguaje L(M) de una Máquina de Turing M? (E_TM)', answer:'undecidable',
+    explanation:'E_TM es IRRECONOCIBLE. No es reconocible ni su complemento es reconocible. Se prueba reduciendo A_TM a ¬E_TM. Por Rice, cualquier propiedad no trivial del lenguaje de una MT es indecidible; "ser vacío" es no trivial.',
+    hint:'Por el Teorema de Rice, cualquier propiedad no trivial del lenguaje de una MT es indecidible. ¿Es "ser vacío" una propiedad del lenguaje?' },
+  { num:3, text:'¿Acepta una Máquina de Turing M todas las cadenas? (ALL_TM: L(M) = Σ*)', answer:'undecidable',
+    explanation:'ALL_TM es IRRECONOCIBLE. Determinar si L(M)=Σ* es un problema Π₂-completo. No es reconocible ni co-reconocible. Se reduce desde el complemento del Problema de la Parada.',
+    hint:'Este problema está aún más arriba en la jerarquía aritmética que A_TM. No es reconocible ni su complemento.' },
+  { num:4, text:'¿Es vacío el lenguaje de un Autómata Finito Determinista (AFD)? (E_AFD)', answer:'decidable',
+    explanation:'E_AFD es DECIDIBLE. Basta con realizar un BFS/DFS desde el estado inicial para ver si existe algún camino hacia un estado de aceptación. Como el AFD tiene un número finito de estados, el algoritmo siempre para.',
+    hint:'Los AFDs tienen un número finito de estados. ¿Podemos buscar un camino desde el inicio hasta un estado de aceptación?' },
+  { num:5, text:'Dada una Máquina de Turing M que siempre para (un decididor), ¿pertenece la cadena w a L(M)?', answer:'decidable',
+    explanation:'DECIDIBLE. Si M siempre para para toda entrada, entonces es un decididor. Podemos ejecutar M con w y, como M siempre para, obtendremos aceptación o rechazo en tiempo finito.',
+    hint:'La premisa dice que M siempre para. ¿Qué implica esto sobre la capacidad de responder la pregunta?' },
+  { num:6, text:'¿Tienen dos Máquinas de Turing M₁ y M₂ el mismo lenguaje? (EQ_TM)', answer:'undecidable',
+    explanation:'EQ_TM es IRRECONOCIBLE. Ni EQ_TM ni su complemento son Turing-reconocibles. E_TM se reduce a EQ_TM (comparando con una MT que rechaza toda entrada). Por Rice, es indecidible.',
+    hint:'Puedes reducir E_TM a este problema. Si pudieras decidir EQ_TM, ¿podrías decidir E_TM?' },
+  { num:7, text:'¿Es el lenguaje de una Máquina de Turing M no vacío? (NE_TM: L(M) ≠ ∅)', answer:'recognizable',
+    explanation:'NE_TM es RECONOCIBLE (no decidible). Podemos enlistar todas las cadenas posibles y simular M con cada una en paralelo (dovetailing). Si M acepta alguna, aceptamos. Pero no es decidible: su complemento E_TM no es reconocible.',
+    hint:'¿Podemos buscar sistemáticamente una cadena que M acepte usando técnicas de enumeración? ¿Qué pasa si M nunca acepta ninguna?' }
+];
+
+let R3 = null;
+const HINT_TEXTS = PROBLEMS.map(p=>p.hint);
+
+function initRoom2(){
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  document.getElementById('room-2').classList.add('active');
+  G.room=2;G.roomStartTime=Date.now();
+  G.hintsUsed=0;
+  updateLives();updateProgress();
+  document.getElementById('hint-btn').disabled=false;
+  document.getElementById('hint-btn').textContent='[?] PISTA';
+  const t=document.getElementById('room2-title');
+  t.style.borderRight='2px solid var(--magenta)';
+  typewriter(t,'▌ SALA 3: EL ORÁCULO — DECIDIBILIDAD Y JERARQUÍA',25,()=>{
+    t.style.borderRight='2px solid transparent';
+    typewriter(document.getElementById('room2-subtitle'),
+      'Clasifica cada problema: DECIDIBLE · RECONOCIBLE (no decidible) · IRRECONOCIBLE',
+      15,()=>{
+        const m=document.getElementById('room2-msg');
+        m.className='sys-msg magenta';
+        typewriter(m,'> SISTEMA: Oráculo conectado. Clasifica los 7 problemas para demostrar tu comprensión de la jerarquía de indecidibilidad.',12);
+      });
+  });
+  resetR3();
+}
+
+function resetR3(){
+  R3={index:0,correct:0,total:PROBLEMS.length};
+  document.querySelectorAll('.classify-btns button').forEach(b=>{b.disabled=false;b.className='';});
+  document.getElementById('hint-btn').disabled=false;
+  showProblem();
+}
+
+function showProblem(){
+  if(!R3||R3.index>=R3.total){
+    document.getElementById('prob-num').textContent='';
+    document.getElementById('prob-text').textContent='▸ Todos los problemas han sido clasificados.';
+    document.querySelectorAll('.classify-btns button').forEach(b=>b.disabled=true);
+    document.getElementById('feedback-box').textContent='';
+    document.getElementById('room3-score').textContent=''
+      +'Resultado final: '+R3.correct+'/'+R3.total+' correctos.';
+    G.completed[2]=true;
+    updateProgress();
+    setTimeout(()=>{
+      showVictory();
+    },2500);
+    return;
+  }
+  const p=PROBLEMS[R3.index];
+  document.getElementById('prob-num').textContent='Problema '+(R3.index+1)+' de '+R3.total;
+  document.getElementById('prob-text').textContent=p.text;
+  document.querySelectorAll('.classify-btns button').forEach(b=>{b.disabled=false;b.className='';});
+  const fb=document.getElementById('feedback-box');
+  fb.textContent='';fb.className='';
+  document.getElementById('room3-score').textContent='Correctos: '+R3.correct+'/'+R3.total;
+}
+
+function classify(choice){
+  if(!R3||R3.index>=R3.total)return;
+  const p=PROBLEMS[R3.index];
+  const correct=(choice===p.answer);
+  const fb=document.getElementById('feedback-box');
+  const labels={decidable:'DECIDIBLE',recognizable:'RECONOCIBLE (no decidible)',undecidable:'IRRECONOCIBLE'};
+  const ansLabel=labels[p.answer];
+  const choiceLabel=labels[choice];
+
+  if(correct){
+    R3.correct++;
+    addScore(100);
+    fb.className='good';
+    fb.innerHTML='<strong>✓ Correcto — '+ansLabel+'</strong><br>'+p.explanation;
+    document.querySelectorAll('.classify-btns button').forEach(b=>{
+      if(b.textContent.trim().startsWith(ansLabel))b.className='correct';
+    });
+  }else{
+    G.totalErrors++;
+    addScore(-50);
+    fb.className='bad';
+    fb.innerHTML='<strong>✗ Incorrecto — Elegiste '+choiceLabel+'. La respuesta es '+ansLabel+'.</strong><br>'+p.explanation;
+    document.querySelectorAll('.classify-btns button').forEach(b=>{
+      if(b.textContent.trim().startsWith(ansLabel))b.className='correct';
+      if(b.textContent.trim().startsWith(choiceLabel))b.className='wrong';
+    });
+  }
+  document.querySelectorAll('.classify-btns button').forEach(b=>b.disabled=true);
+  document.getElementById('room3-score').textContent='Correctos: '+R3.correct+'/'+R3.total;
+  R3.index++;
+  setTimeout(()=>showProblem(),4000);
+}
+
+function useHint(){
+  if(!R3||R3.index>=R3.total)return;
+  if(G.hintsUsed>=1){
+    document.getElementById('hint-btn').disabled=true;
+    return;
+  }
+  G.hintsUsed++;
+  addScore(-10);
+  const p=PROBLEMS[R3.index];
+  const fb=document.getElementById('feedback-box');
+  fb.className='hint';
+  fb.innerHTML='<strong>[PISTA]</strong> '+p.hint+'<br><span style="color:#666;font-size:.7rem">(-10 puntos por usar pista)</span>';
+  document.getElementById('hint-btn').textContent='[?] PISTA USADA';
+  document.getElementById('hint-btn').disabled=true;
+}
+
+// ================================================================
+// VICTORY
+// ================================================================
+function showVictory(){
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  document.getElementById('victory-screen').classList.add('active');
+  document.getElementById('hud').classList.remove('show');
+  stopTimer();
+  const totalTime=getElapsed();
+  const mins=Math.floor(totalTime/60),secs=Math.floor(totalTime%60);
+  const timeStr=mins+'m '+secs+'s';
+
+  let rank,rankColor;
+  if(G.score>=3000){rank='Maestro de Turing';rankColor='var(--green)';}
+  else if(G.score>=2000){rank='Experto en Computabilidad';rankColor='var(--cyan)';}
+  else if(G.score>=1000){rank='Ingeniero de Lenguajes';rankColor='var(--green)';}
+  else if(G.score>=500){rank='Técnico en Autómatas';rankColor='#aaa';}
+  else {rank='Aprendiz';rankColor='#666';}
+
+  const isNewHigh=G.score>G.highScore;
+  if(isNewHigh){
+    G.highScore=G.score;
+    localStorage.setItem('turingEscapeHigh',G.score);
+  }
+
+  document.getElementById('final-rank').textContent='RANGO: '+rank;
+  document.getElementById('final-rank').style.color=rankColor;
+
+  document.getElementById('final-stats').innerHTML=
+    '<div class="stat-row"><span class="stat-label">Puntaje Total</span><span class="stat-value gold">'+G.score+'</span></div>'
+    +'<div class="stat-row"><span class="stat-label">Tiempo Total</span><span class="stat-value">'+timeStr+'</span></div>'
+    +'<div class="stat-row"><span class="stat-label">Errores Cometidos</span><span class="stat-value">'+G.totalErrors+'</span></div>'
+    +'<div class="stat-row"><span class="stat-label">Salas Completadas</span><span class="stat-value">3/3</span></div>'
+    +'<div class="stat-row"><span class="stat-label">High Score</span><span class="stat-value high">'+G.highScore+(isNewHigh?' ← NUEVO!':'')+'</span></div>';
+}
+
+// ================================================================
+// GENERAL HELPERS
+// ================================================================
+function resetCurrent(){
+  if(G.room===0&&P){
+    const str = P.input;
+    if(G.pdaDone.has(str)){
+      // Already completed; restart from the first uncompleted or same string
+      const all=['aabb','aaabbb','aaab','b'];
+      const next=all.find(s=>!G.pdaDone.has(s));
+      if(next)selectPDA(next);
+      else { resetPDA(str); enablePDABtns(true); }
+    } else {
+      resetPDA(str);
+      enablePDABtns(true);
+    }
+  }
+  else if(G.room===1&&T){
+    const str = T.testStr;
+    if(G.tmDone.has(str)){
+      const all=['01','001'];
+      const next=all.find(s=>!G.tmDone.has(s));
+      if(next)selectTM(next);
+      else { resetTM(str); enableTM(true); }
+    } else {
+      resetTM(str);
+      enableTM(true);
+    }
+  }
+}
+
+function resetGame(){
+  document.getElementById('victory-screen').classList.remove('active');
+  document.getElementById('start-screen').style.display='flex';
+  document.getElementById('game-container').classList.remove('active');
+  document.getElementById('hud').classList.remove('show');
+  stopTimer();
+  document.querySelectorAll('.room').forEach(r=>r.classList.remove('active'));
+  document.getElementById('room-0').classList.add('active');
+  G.room=0;G.pdaDone=new Set();
+}
+
+// INIT
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('hud-high').textContent=G.highScore;
+});
+</script>
+</body>
+</html>
